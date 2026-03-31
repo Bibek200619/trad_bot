@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Futures Testnet Desk</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <script defer src="{{ url_for('static', filename='app.js') }}"></script>
+</head>
+<body>
+  <div class="backdrop backdrop-one"></div>
+  <div class="backdrop backdrop-two"></div>
+  <main class="page">
+    <section class="panel hero reveal">
+      <div class="hero-copy">
+        <p class="eyebrow">Binance USD-M Futures Testnet</p>
+        <h1>Trade from a calmer order pad.</h1>
+        <p class="lead">
+          This UI sits on top of the same validation, logging, and API client used by the CLI.
+          Submit market or limit orders, inspect the response, and keep clean logs per run.
+        </p>
+      </div>
+      <div class="hero-meta">
+        <div class="meta-card">
+          <span class="meta-label">Endpoint</span>
+          <strong>{{ base_url }}</strong>
+        </div>
+        <div class="meta-card">
+          <span class="meta-label">Modes</span>
+          <strong>BUY / SELL · MARKET / LIMIT</strong>
+        </div>
+        <div class="meta-card">
+          <span class="meta-label">Logging</span>
+          <strong>JSON files in <code>logs/</code></strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="content-grid">
+      <section class="panel order-panel reveal">
+        <div class="section-heading">
+          <p class="section-kicker">Order Ticket</p>
+          <h2>Compose a testnet order</h2>
+        </div>
+
+        <form method="post" class="order-form" novalidate>
+          <div class="field-grid">
+            <label class="field">
+              <span>Symbol</span>
+              <input type="text" name="symbol" value="{{ form_data.symbol }}" placeholder="BTCUSDT" autocomplete="off" required>
+            </label>
+
+            <label class="field">
+              <span>Quantity</span>
+              <input type="text" name="quantity" value="{{ form_data.quantity }}" placeholder="0.002" inputmode="decimal" required>
+            </label>
+
+            <label class="field" data-price-field {% if form_data.order_type != "LIMIT" %}hidden{% endif %}>
+              <span>Limit Price</span>
+              <input type="text" name="price" value="{{ form_data.price }}" placeholder="70000" inputmode="decimal" {% if form_data.order_type == "LIMIT" %}required{% endif %}>
+            </label>
+
+            <label class="field">
+              <span>Time In Force</span>
+              <select name="time_in_force">
+                {% for option in ["GTC", "IOC", "FOK", "GTX", "GTD"] %}
+                  <option value="{{ option }}" {% if form_data.time_in_force == option %}selected{% endif %}>{{ option }}</option>
+                {% endfor %}
+              </select>
+            </label>
+          </div>
+
+          <div class="choice-row">
+            <div class="choice-group">
+              <span class="choice-label">Side</span>
+              <div class="pill-group">
+                {% for option in ["BUY", "SELL"] %}
+                  <label class="pill pill-{{ option|lower }}">
+                    <input type="radio" name="side" value="{{ option }}" {% if form_data.side == option %}checked{% endif %}>
+                    <span>{{ option }}</span>
+                  </label>
+                {% endfor %}
+              </div>
+            </div>
+
+            <div class="choice-group">
+              <span class="choice-label">Order Type</span>
+              <div class="pill-group">
+                {% for option in ["MARKET", "LIMIT"] %}
+                  <label class="pill pill-neutral">
+                    <input type="radio" name="order_type" value="{{ option }}" {% if form_data.order_type == option %}checked{% endif %}>
+                    <span>{{ option }}</span>
+                  </label>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+
+          <div class="form-footer">
+            <div class="hint-block">
+              <strong>Heads up</strong>
+              <p>
+                MARKET orders ignore the price field. LIMIT orders require a price aligned to Binance tick size.
+              </p>
+            </div>
+            <button type="submit" class="submit-button">Send Order</button>
+          </div>
+        </form>
+      </section>
+
+      <aside class="panel market-panel reveal">
+        <div class="section-heading">
+          <p class="section-kicker">Market Context</p>
+          <h2>{{ snapshot.symbol if snapshot else form_data.symbol }}</h2>
+        </div>
+
+        {% if snapshot and snapshot.error %}
+          <div class="message-banner error-banner">
+            <strong>Snapshot unavailable</strong>
+            <p>{{ snapshot.error }}</p>
+          </div>
+        {% elif snapshot %}
+          <div class="market-stats">
+            <div class="stat-tile">
+              <span>Latest Price</span>
+              <strong>{{ snapshot.latest_price }}</strong>
+            </div>
+            <div class="stat-tile">
+              <span>Status</span>
+              <strong>{{ snapshot.status }}</strong>
+            </div>
+            <div class="stat-tile">
+              <span>Tick Size</span>
+              <strong>{{ snapshot.tick_size }}</strong>
+            </div>
+            <div class="stat-tile">
+              <span>Min Qty</span>
+              <strong>{{ snapshot.min_qty }}</strong>
+            </div>
+            <div class="stat-tile">
+              <span>Market Min Qty</span>
+              <strong>{{ snapshot.market_min_qty }}</strong>
+            </div>
+            <div class="stat-tile">
+              <span>Min Notional</span>
+              <strong>{{ snapshot.min_notional }}</strong>
+            </div>
+          </div>
+
+          <div class="market-note">
+            <span class="note-label">Supported TIF</span>
+            <p>{{ snapshot.time_in_force }}</p>
+          </div>
+        {% endif %}
+      </aside>
+    </section>
+
+    <section class="panel result-panel reveal">
+      <div class="section-heading">
+        <p class="section-kicker">Execution</p>
+        <h2>Submission result</h2>
+      </div>
+
+      {% if result %}
+        <div class="message-banner {% if result.ok %}success-banner{% else %}error-banner{% endif %}">
+          <strong>{{ "Order accepted" if result.ok else "Order failed" }}</strong>
+          <p>{{ result.message }}</p>
+          <p>Log file: <code>{{ result.log_path }}</code></p>
+        </div>
+
+        {% if result.request_summary %}
+          <div class="detail-grid">
+            <section class="detail-card">
+              <h3>Request Summary</h3>
+              <dl>
+                {% for key, value in result.request_summary.items() %}
+                  <div class="detail-row">
+                    <dt>{{ key }}</dt>
+                    <dd>{{ value }}</dd>
+                  </div>
+                {% endfor %}
+              </dl>
+            </section>
+
+            <section class="detail-card">
+              <h3>Response Details</h3>
+              <dl>
+                {% for key, value in result.response_details.items() %}
+                  <div class="detail-row">
+                    <dt>{{ key }}</dt>
+                    <dd>{{ value }}</dd>
+                  </div>
+                {% endfor %}
+              </dl>
+            </section>
+          </div>
+
+          <section class="detail-card raw-response">
+            <h3>Raw Binance Response</h3>
+            <pre>{{ result.raw_response | tojson(indent=2) }}</pre>
+          </section>
+        {% endif %}
+      {% else %}
+        <div class="empty-state">
+          <p>Submit an order to see the normalized request, exchange response, and log file path here.</p>
+        </div>
+      {% endif %}
+    </section>
+  </main>
+</body>
+</html>
